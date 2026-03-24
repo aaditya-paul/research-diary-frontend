@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-buddy-yellow: #fdfc82;
+  --color-buddy-green: #a7f3d0;
+  --color-buddy-purple: #b1a2f6;
+  --color-buddy-dark: #111111;
+  --color-buddy-bg: #f9fafb;
+  
+  --shadow-brutal: 4px 4px 0px 0px #111111;
+  --shadow-brutal-glow: 4px 4px 0px 0px rgba(167, 243, 208, 0.5);
+  --shadow-brutal-glow-yellow: 4px 4px 0px 0px rgba(253, 251, 130, 0.5);
+  --shadow-brutal-glow-purple: 4px 4px 0px 0px rgba(177, 162, 246, 0.5);
+}
+
+@layer base {
+  body {
+    @apply bg-buddy-yellow text-buddy-dark dark:bg-buddy-dark dark:text-gray-100 transition-colors duration-300 font-sans;
+  }
+}
+
+@layer components {
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-all duration-200 select-none border-2 border-buddy-dark dark:border-white/20 hover:scale-105 active:scale-95;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-all duration-200 select-none border-2 hover:scale-105 active:scale-95 bg-white dark:bg-black/40 dark:backdrop-blur-md dark:text-buddy-green dark:border-buddy-green text-buddy-dark shadow-brutal dark:shadow-[4px_4px_0_0_rgba(167,243,208,0.5)] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-all duration-200 select-none border-2 hover:scale-105 active:scale-95 bg-buddy-green dark:bg-black/40 dark:backdrop-blur-md text-buddy-dark dark:text-buddy-yellow dark:border-buddy-yellow shadow-brutal dark:shadow-[4px_4px_0_0_rgba(253,251,130,0.5)] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-all duration-200 select-none border-2 border-transparent text-buddy-dark hover:scale-105 active:scale-95 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:border-white/10;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-all duration-200 select-none border-2 hover:scale-105 active:scale-95 bg-red-400 dark:bg-red-500/20 text-buddy-dark dark:text-red-400 dark:border-red-400 shadow-brutal dark:shadow-[4px_4px_0_0_rgba(248,113,113,0.5)] disabled:opacity-50;
+  }
+
+  .form-card {
+    @apply bg-white rounded-3xl border-2 border-buddy-dark shadow-brutal transition-shadow duration-300 dark:bg-black/40 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-[8px_8px_0_0_rgba(167,243,208,0.2)];
+  }
+}
+
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+}
+
+.text-stroke-buddy {
+  -webkit-text-stroke: 2px #1c1c1a;
+}
+.dark .text-stroke-buddy {
+  -webkit-text-stroke: 2px #fdfb82;
+  color: transparent;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror ul {
+  list-style-type: disc !important;
+  padding-left: 1.5em !important;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5em !important;
+}
+
+.ProseMirror li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.ProseMirror li p {
+  display: inline;
+}
+
+.ProseMirror pre {
+  background: #111111 !important;
+  color: #a7f3d0 !important;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace !important;
+  padding: 1rem !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid rgba(167, 243, 208, 0.3) !important;
+  box-shadow: 4px 4px 0px 0px rgba(167, 243, 208, 0.2) !important;
+}
+.ProseMirror pre code {
+  color: inherit !important;
+  padding: 0 !important;
+  background: none !important;
+  font-size: 0.85rem !important;
+  border: none !important;
+  white-space: pre-wrap !important;
+}
+
+.ProseMirror code {
+  background-color: rgba(167, 243, 208, 0.1) !important;
+  color: #a7f3d0 !important;
+  padding: 0.2em 0.4em !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.85em !important;
+  border: 1px solid rgba(167, 243, 208, 0.3) !important;
+}
+
+.ProseMirror blockquote {
+  border-left: 4px solid #1c1c1a !important;
+  padding: 0.5rem 0.5rem 0.5rem 1rem !important;
+  font-style: italic !important;
+  margin: 1rem 0 !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 0 0.5rem 0.5rem 0 !important;
+}
+.dark .ProseMirror blockquote {
+  border-left-color: #a7f3d0 !important;
+  background-color: rgba(167, 243, 208, 0.1) !important;
+  color: #e5e7eb !important;
+}
+
+.ProseMirror mark {
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  color: #1c1c1a !important;
+}
+.ProseMirror mark:not([style]) {
+  background-color: #fdfb82 !important;
+}
+.dark .ProseMirror mark {
+  color: inherit !important;
+  filter: brightness(1.1) saturate(0.7);
+  opacity: 0.9;
+}
+.dark .ProseMirror mark:not([style]) {
+  background-color: rgba(253, 251, 130, 0.3) !important;
+  color: #fdfb82 !important;
+}
+
+.ProseMirror u {
+  text-decoration-line: underline !important;
+  text-decoration-color: #1c1c1a !important;
+  text-decoration-thickness: 3px !important;
+  text-underline-offset: 4px !important;
+}
+.dark .ProseMirror u {
+  text-decoration-color: #fdfb82 !important;
+}

@@ -1,0 +1,40 @@
+{
+  "name": "research-diary-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tiptap/extension-code-block": "^2.27.2",
+    "@tiptap/extension-highlight": "^2.27.2",
+    "@tiptap/extension-link": "^2.2.4",
+    "@tiptap/extension-placeholder": "^2.2.4",
+    "@tiptap/extension-underline": "^2.27.2",
+    "@tiptap/pm": "^2.2.4",
+    "@tiptap/react": "^2.2.4",
+    "@tiptap/starter-kit": "^2.2.4",
+    "axios": "^1.6.7",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.0.1",
+    "next-themes": "^0.4.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
+  }
+}
