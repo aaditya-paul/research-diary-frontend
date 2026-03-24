@@ -136,7 +136,9 @@ function App() {
                   <div className="absolute bottom-10 -left-10 w-40 h-40 bg-buddy-purple rounded-full blur-[100px] opacity-30 pointer-events-none" />
 
                   {/* Entries List Column - hide on mobile when editor is open */}
-                  <div className={`w-full lg:w-1/3 flex flex-col form-card p-4 sm:p-6 overflow-hidden lg:h-full z-10 ${(isCreating || selectedEntry) ? "hidden lg:flex" : "h-[50vh] sm:h-[calc(100vh-8rem)]"}`}>
+                  <div
+                    className={`w-full lg:w-1/3 flex flex-col form-card p-4 sm:p-6 overflow-hidden lg:h-full z-10 ${isCreating || selectedEntry ? "hidden lg:flex" : "h-[50vh] sm:h-[calc(100vh-8rem)]"}`}
+                  >
                     <div className="flex items-center justify-between mb-6 shrink-0">
                       <h2 className="font-extrabold text-2xl tracking-tight uppercase text-buddy-dark dark:text-gray-100">
                         Entries
@@ -186,7 +188,9 @@ function App() {
                   </div>
 
                   {/* Editor Column */}
-                  <div className={`w-full lg:w-2/3 lg:h-full lg:overflow-y-auto z-10 sm:p-2 ${(isCreating || selectedEntry) ? "h-[calc(100vh-8rem)]" : ""}`}>
+                  <div
+                    className={`w-full lg:w-2/3 lg:h-full lg:overflow-y-auto z-10 sm:p-2 ${isCreating || selectedEntry ? "h-[calc(100vh-8rem)]" : ""}`}
+                  >
                     <AnimatePresence mode="wait">
                       {isCreating ? (
                         <motion.div

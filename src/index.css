@@ -7,7 +7,7 @@
   --color-buddy-purple: #b1a2f6;
   --color-buddy-dark: #111111;
   --color-buddy-bg: #f9fafb;
-  
+
   --shadow-brutal: 4px 4px 0px 0px #111111;
   --shadow-brutal-glow: 4px 4px 0px 0px rgba(167, 243, 208, 0.5);
   --shadow-brutal-glow-yellow: 4px 4px 0px 0px rgba(253, 251, 130, 0.5);
@@ -89,7 +89,7 @@
 .ProseMirror pre {
   background: #111111 !important;
   color: #a7f3d0 !important;
-  font-family: 'Fira Code', 'Courier New', Courier, monospace !important;
+  font-family: "Fira Code", "Courier New", Courier, monospace !important;
   padding: 1rem !important;
   border-radius: 0.5rem !important;
   border: 1px solid rgba(167, 243, 208, 0.3) !important;
