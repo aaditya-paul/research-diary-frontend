@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
 import type { Report } from "../types";
 import { reportApi, exportApi } from "../services/api";
 
@@ -55,7 +56,8 @@ export function ReportsList({ refreshTrigger }: ReportsListProps) {
           break;
         case "pdf":
           response = await exportApi.pdf(reportId);
-          const byteCharacters = atob(response.content);
+          const normalizedBase64 = response.content.replace(/\s+/g, "");
+          const byteCharacters = atob(normalizedBase64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -74,7 +76,14 @@ export function ReportsList({ refreshTrigger }: ReportsListProps) {
       }
     } catch (error) {
       console.error(`Failed to export ${format}:`, error);
-      alert(`Failed to export as ${format.toUpperCase()}`);
+      let message = `Failed to export as ${format.toUpperCase()}`;
+      if (axios.isAxiosError(error)) {
+        const detail = error.response?.data?.detail;
+        if (typeof detail === "string" && detail.trim()) {
+          message = `${message}: ${detail}`;
+        }
+      }
+      alert(message);
     }
   };
 
