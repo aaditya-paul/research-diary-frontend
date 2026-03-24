@@ -56,6 +56,8 @@ export interface DraftQualityMetrics {
   min_citations_required: number;
   citations_passed: boolean;
   structure_passed: boolean;
+  factual_grounding_score?: number;
+  redundancy_penalty?: number;
 }
 
 export interface DraftDiagnostics {
@@ -63,6 +65,9 @@ export interface DraftDiagnostics {
   attempts_used: number;
   provider_used: string;
   issues: string[];
+  factual_grounding_score?: number;
+  confidence?: "high" | "medium" | "low";
+  evidence_map?: Array<{ claim: string; evidence: string; overlap: string }>;
 }
 
 export interface DraftRegenerateResult {

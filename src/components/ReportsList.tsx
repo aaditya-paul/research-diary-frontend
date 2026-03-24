@@ -3,6 +3,12 @@ import axios from "axios";
 import type { Report } from "../types";
 import { reportApi, exportApi } from "../services/api";
 
+type CitationRef = {
+  id: number;
+  type: string;
+  value: string;
+};
+
 interface ReportsListProps {
   refreshTrigger: number;
 }
@@ -112,6 +118,106 @@ export function ReportsList({ refreshTrigger }: ReportsListProps) {
     });
   };
 
+  const collectNumericReferences = (report: Report): CitationRef[] => {
+    const merged = new Map<number, CitationRef>();
+
+    // ── 1. Primary: shared global citation_registry (authoritative inline IDs) ──
+    const globalReg: any[] = report.content?.citation_registry || [];
+    globalReg.forEach((ref: any) => {
+      if (typeof ref?.id === "number" && !merged.has(ref.id)) {
+        merged.set(ref.id, {
+          id: ref.id,
+          type: ref.type || "source",
+          value: ref.value || "Unknown source",
+        });
+      }
+    });
+
+    // ── 2. Per-section registries fallback (manual mode / old reports) ────────
+    if (merged.size === 0) {
+      ["hypothesis", "methodology", "findings", "conclusions", "timeline"].forEach((section) => {
+        const refs: any[] = report.content?.[section]?.citation_registry || [];
+        refs.forEach((ref: any) => {
+          if (typeof ref?.id === "number" && !merged.has(ref.id)) {
+            merged.set(ref.id, {
+              id: ref.id,
+              type: ref.type || "source",
+              value: ref.value || "Unknown source",
+            });
+          }
+        });
+      });
+    }
+
+    // ── 3. Supplement with content.references (richer extraction from modal) ──
+    // Adds any references the extraction found but that didn't make it into
+    // the numeric registry (e.g. sources seen after chunk cutoff).
+    // De-duplicated by value; assigned IDs continue from the highest existing ID.
+    const existingValues = new Set(
+      [...merged.values()].map((r) => r.value.toLowerCase().trim())
+    );
+    let nextId = merged.size > 0 ? Math.max(...merged.keys()) + 1 : 1;
+    const rawRefs: any[] = report.content?.references || [];
+    rawRefs.forEach((ref: any) => {
+      const val: string = (ref?.value || "").trim();
+      if (!val) return;
+      if (existingValues.has(val.toLowerCase())) return;
+      merged.set(nextId, {
+        id: nextId,
+        type: ref.type || "source",
+        value: val,
+      });
+      existingValues.add(val.toLowerCase());
+      nextId++;
+    });
+
+    return [...merged.values()].sort((a, b) => a.id - b.id);
+  };
+
+
+  const jumpToReference = (reportId: number, citationId: number) => {
+    const el = document.getElementById(`ref-${reportId}-${citationId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-buddy-purple", "dark:ring-buddy-green");
+      window.setTimeout(() => {
+        el.classList.remove(
+          "ring-2",
+          "ring-buddy-purple",
+          "dark:ring-buddy-green",
+        );
+      }, 1200);
+    }
+  };
+
+  const renderDraftWithCitationAnchors = (text: string, reportId: number) => {
+    return text.split("\n\n").map((paragraph, pIdx) => {
+      const parts = paragraph.split(/(\[\d+\])/g);
+      return (
+        <p key={pIdx}>
+          {parts.map((part, idx) => {
+            const match = part.match(/^\[(\d+)\]$/);
+            if (!match) {
+              return <span key={`${pIdx}-${idx}`}>{part}</span>;
+            }
+            const citationId = Number(match[1]);
+            return (
+              <button
+                key={`${pIdx}-${idx}`}
+                type="button"
+                onClick={() => jumpToReference(reportId, citationId)}
+                className="mx-0.5 inline-flex items-center rounded px-1 text-xs font-black text-buddy-purple dark:text-buddy-green underline decoration-dotted hover:bg-buddy-purple/10 dark:hover:bg-buddy-green/10"
+                title={`Jump to reference [${citationId}]`}
+              >
+                [{citationId}]
+              </button>
+            );
+          })}
+        </p>
+      );
+    });
+  };
+
   if (loading) {
     return (
       <div className="p-8 text-center text-buddy-dark dark:text-gray-400 font-bold uppercase tracking-widest">
@@ -177,111 +283,115 @@ export function ReportsList({ refreshTrigger }: ReportsListProps) {
 
           {selectedReport?.id === report.id && (
             <div className="mt-5 pt-5 border-t-2 border-buddy-dark/10 dark:border-white/10">
-              {["hypothesis", "methodology", "findings", "conclusions"].map(
-                (section) => {
-                  const sectionData = report.content[section];
-                  if (!sectionData) return null;
-                  return (
-                    <div key={section} className="mb-5">
-                      <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
-                        {section}
-                      </h4>
-                      <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
-                        {sectionData.draft
-                          ? sectionData.draft
-                              .split("\n\n")
-                              .map((p: string, i: number) => <p key={i}>{p}</p>)
-                          : (sectionData.selected_texts || []).map(
-                              (text: string, i: number) => (
-                                <p key={i}>{text}</p>
-                              ),
-                            )}
-                      </div>
-                      {sectionData.quality && (
-                        <p className="mt-2 text-xs font-bold uppercase tracking-wide text-buddy-dark/60 dark:text-gray-500">
-                          {sectionData.quality.word_count} words | citations:{" "}
-                          {sectionData.quality.citation_count}
-                        </p>
-                      )}
-                      {sectionData.citation_registry?.length > 0 && (
-                        <div className="mt-3 text-xs space-y-1">
-                          {sectionData.citation_registry.map((ref: any) => (
-                            <p
-                              key={ref.id}
-                              className="text-buddy-dark/70 dark:text-gray-400"
-                            >
-                              <span className="font-bold">[{ref.id}]</span>{" "}
-                              {ref.type}: {ref.value}
+              {(() => {
+                const numericRefs = collectNumericReferences(report);
+                return (
+                  <>
+                    {[
+                      "hypothesis",
+                      "methodology",
+                      "findings",
+                      "conclusions",
+                    ].map((section) => {
+                      const sectionData = report.content[section];
+                      if (!sectionData) return null;
+                      return (
+                        <div key={section} className="mb-5">
+                          <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
+                            {section}
+                          </h4>
+                          <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
+                            {sectionData.draft
+                              ? renderDraftWithCitationAnchors(
+                                  sectionData.draft,
+                                  report.id,
+                                )
+                              : (sectionData.selected_texts || []).map(
+                                  (text: string, i: number) => (
+                                    <p key={i}>{text}</p>
+                                  ),
+                                )}
+                          </div>
+                          {sectionData.quality && (
+                            <p className="mt-2 text-xs font-bold uppercase tracking-wide text-buddy-dark/60 dark:text-gray-500">
+                              {sectionData.quality.word_count} words |
+                              citations: {sectionData.quality.citation_count}
                             </p>
+                          )}
+
+                        </div>
+                      );
+                    })}
+
+                    {report.content.timeline && (
+                      <div className="mb-5">
+                        <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
+                          Timeline
+                        </h4>
+                        <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
+                          {report.content.timeline.draft ? (
+                            renderDraftWithCitationAnchors(
+                              report.content.timeline.draft,
+                              report.id,
+                            )
+                          ) : (
+                            <ol className="list-decimal pl-5 space-y-2">
+                              {(
+                                report.content.timeline.selected_texts || []
+                              ).map((text: string, i: number) => (
+                                <li key={i}>{text}</li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {numericRefs.length > 0 && (
+                      <div className="mb-5">
+                        <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
+                          References
+                        </h4>
+                        <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
+                          {numericRefs.map((ref) => (
+                            <div
+                              key={ref.id}
+                              id={`ref-${report.id}-${ref.id}`}
+                              className="rounded border border-buddy-dark/20 dark:border-white/20 px-3 py-2 transition"
+                            >
+                              <span className="font-black">[{ref.id}]</span>{" "}
+                              {ref.type}: {ref.value}
+                            </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  );
-                },
-              )}
-
-              {report.content.timeline && (
-                <div className="mb-5">
-                  <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
-                    Timeline
-                  </h4>
-                  <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
-                    {report.content.timeline.draft ? (
-                      report.content.timeline.draft
-                        .split("\n\n")
-                        .map((p: string, i: number) => <p key={i}>{p}</p>)
-                    ) : (
-                      <ol className="list-decimal pl-5 space-y-2">
-                        {(report.content.timeline.selected_texts || []).map(
-                          (text: string, i: number) => (
-                            <li key={i}>{text}</li>
-                          ),
-                        )}
-                      </ol>
+                      </div>
                     )}
-                  </div>
-                </div>
-              )}
 
-              {report.content.references &&
-                report.content.references.length > 0 && (
-                  <div className="mb-5">
-                    <h4 className="font-black uppercase tracking-widest text-sm text-buddy-dark dark:text-buddy-green mb-2">
-                      References
-                    </h4>
-                    <div className="text-sm space-y-2 text-buddy-dark dark:text-gray-300 font-medium leading-relaxed">
-                      {report.content.references.map((ref: any, i: number) => (
-                        <div key={i}>
-                          <span className="font-bold border-b border-buddy-dark/20 dark:border-white/20 pb-0.5">
-                            {ref.type}: {ref.value}
-                          </span>
-                        </div>
-                      ))}
+
+
+                    <div className="flex flex-wrap gap-3 mt-6">
+                      <button
+                        onClick={() => handleExport(report.id, "markdown")}
+                        className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-green/20 dark:hover:text-buddy-green rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(167,243,208,0.3)] transition-all active:translate-y-1 active:shadow-none"
+                      >
+                        Export Markdown
+                      </button>
+                      <button
+                        onClick={() => handleExport(report.id, "html")}
+                        className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-purple/20 dark:hover:text-buddy-purple rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(177,162,246,0.3)] transition-all active:translate-y-1 active:shadow-none"
+                      >
+                        Export HTML
+                      </button>
+                      <button
+                        onClick={() => handleExport(report.id, "pdf")}
+                        className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-green/20 dark:hover:text-buddy-green rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(167,243,208,0.3)] transition-all active:translate-y-1 active:shadow-none"
+                      >
+                        Export PDF
+                      </button>
                     </div>
-                  </div>
-                )}
-
-              <div className="flex flex-wrap gap-3 mt-6">
-                <button
-                  onClick={() => handleExport(report.id, "markdown")}
-                  className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-green/20 dark:hover:text-buddy-green rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(167,243,208,0.3)] transition-all active:translate-y-1 active:shadow-none"
-                >
-                  Export Markdown
-                </button>
-                <button
-                  onClick={() => handleExport(report.id, "html")}
-                  className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-purple/20 dark:hover:text-buddy-purple rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(177,162,246,0.3)] transition-all active:translate-y-1 active:shadow-none"
-                >
-                  Export HTML
-                </button>
-                <button
-                  onClick={() => handleExport(report.id, "pdf")}
-                  className="px-4 py-2 text-sm font-bold border-2 border-buddy-dark dark:border-white/20 text-buddy-dark dark:text-gray-200 bg-white/50 dark:bg-black/40 hover:bg-buddy-yellow dark:hover:bg-buddy-green/20 dark:hover:text-buddy-green rounded-full shadow-brutal dark:shadow-[2px_2px_0_0_rgba(167,243,208,0.3)] transition-all active:translate-y-1 active:shadow-none"
-                >
-                  Export PDF
-                </button>
-              </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

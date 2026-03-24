@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
+  CitationReference,
   DraftRegenerateResult,
+  Entry,
   ReportGenerateResponse,
   ReportSectionSuggestion,
   Reference,
   ReferenceMention,
 } from "../types";
-import { reportApi } from "../services/api";
+import { entryApi, reportApi } from "../services/api";
 
 interface ReportBuilderProps {
   selectedEntries: number[];
@@ -37,10 +39,28 @@ export function ReportBuilder({
   );
   const [drafting, setDrafting] = useState<Record<string, boolean>>({});
   const [isManualMode, setIsManualMode] = useState(false);
+  const [progressTimeline, setProgressTimeline] = useState<string[]>([]);
+  const [globalCitationRegistry, setGlobalCitationRegistry] = useState<
+    CitationReference[]
+  >([]);
+  const timelineEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll progress timeline to bottom whenever a new item is added.
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [progressTimeline]);
+
+  const pushProgress = (message: string) => {
+    setProgressTimeline((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()} - ${message}`,
+    ]);
+  };
 
   const generateDraftForSectionData = async (
     sectionName: string,
     selectedTexts: string[],
+    fullDiaryContext: string,
   ) => {
     if (selectedTexts.length === 0) return;
     setSectionStatus((prev) => ({ ...prev, [sectionName]: "generating" }));
@@ -49,6 +69,7 @@ export function ReportBuilder({
       const response = await reportApi.regenerateDraft(
         sectionName,
         selectedTexts,
+        fullDiaryContext,
       );
       setDrafts((prev) => ({ ...prev, [sectionName]: response.draft }));
       setDraftMetadata((prev) => ({ ...prev, [sectionName]: response }));
@@ -71,41 +92,121 @@ export function ReportBuilder({
     }
 
     setGenerating(true);
+    setProgressTimeline([]);
     try {
-      const result = await reportApi.generateSuggestions(
-        selectedEntries,
-        reportType,
-      );
-
       if (!isManualMode) {
-        // Auto-select best matches for each section
-        const newSections = { ...result.sections };
-        Object.keys(newSections).forEach((section) => {
-          setSectionStatus((prev) => ({ ...prev, [section]: "queued" }));
-          if (newSections[section].suggestions.length > 0) {
-            // Select up to top 3 suggestions by default
-            newSections[section].selected = newSections[section].suggestions
-              .slice(0, 3)
-              .map((_, i) => i);
-          }
-        });
-
-        result.sections = newSections;
-        setSuggestions(result);
-
-        // Auto-generate drafts
-        const promises = Object.keys(newSections).map(async (sectionName) => {
-          const sectionData = newSections[sectionName];
-          const selectedTexts = sectionData.selected.map(
-            (idx) => sectionData.suggestions[idx]?.text || "",
+        pushProgress("Initializing auto-generation stream...");
+        await new Promise<void>((resolve, reject) => {
+          const streamUrl = reportApi.draftStreamUrl(
+            selectedEntries,
+            reportType,
           );
-          if (selectedTexts.length > 0) {
-            await generateDraftForSectionData(sectionName, selectedTexts);
-          }
+          const source = new EventSource(streamUrl);
+
+          source.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data || "{}");
+              const eventType = data?.type;
+
+              if (eventType === "started") {
+                pushProgress("Analyzing selected entries...");
+                return;
+              }
+
+              if (eventType === "suggestions_ready") {
+                const nextStatus: Record<string, string> = {};
+                Object.keys(data.sections || {}).forEach((sectionName) => {
+                  nextStatus[sectionName] = "queued";
+                });
+                setSectionStatus(nextStatus);
+                pushProgress("Suggestions ready. Starting section drafting...");
+                return;
+              }
+
+              if (eventType === "section_started") {
+                const section = data.section as string;
+                setSectionStatus((prev) => ({
+                  ...prev,
+                  [section]: "generating",
+                }));
+                setDrafting((prev) => ({ ...prev, [section]: true }));
+                pushProgress(`Generating ${getSectionTitle(section)}...`);
+                return;
+              }
+
+              if (eventType === "section_skipped") {
+                const section = data.section as string;
+                setSectionStatus((prev) => ({ ...prev, [section]: "skipped" }));
+                pushProgress(
+                  `Skipped ${getSectionTitle(section)} (no selected snippets)`,
+                );
+                return;
+              }
+
+              if (eventType === "section_completed") {
+                const section = data.section as string;
+                setDrafting((prev) => ({ ...prev, [section]: false }));
+                setSectionStatus((prev) => ({
+                  ...prev,
+                  [section]: data.status || "done",
+                }));
+                if (typeof data.draft === "string") {
+                  setDrafts((prev) => ({ ...prev, [section]: data.draft }));
+                }
+                if (data.metadata) {
+                  setDraftMetadata((prev) => ({
+                    ...prev,
+                    [section]: data.metadata as DraftRegenerateResult,
+                  }));
+                }
+                pushProgress(
+                  `Completed ${getSectionTitle(section)} (${data.status || "done"})`,
+                );
+                return;
+              }
+
+              if (eventType === "completed") {
+                const payload = data.payload || {};
+                setSuggestions({
+                  sections: payload.sections || {},
+                  references: payload.references || [],
+                });
+                setDrafts(payload.drafts || {});
+                setDraftMetadata(payload.draft_metadata || {});
+                setSectionStatus(payload.section_status || {});
+                setGlobalCitationRegistry(
+                  payload.global_citation_registry || [],
+                );
+                setDrafting({});
+                pushProgress("All sections completed.");
+                source.close();
+                resolve();
+                return;
+              }
+
+              if (eventType === "error") {
+                const errMsg = data.message || "Streaming failed";
+                source.close();
+                reject(new Error(errMsg));
+              }
+            } catch (err) {
+              source.close();
+              reject(err);
+            }
+          };
+
+          source.onerror = () => {
+            source.close();
+            reject(new Error("Lost connection to generation stream."));
+          };
         });
-        await Promise.all(promises);
       } else {
+        const result = await reportApi.generateSuggestions(
+          selectedEntries,
+          reportType,
+        );
         setSuggestions(result);
+        pushProgress("Suggestions ready (manual mode).");
       }
     } catch (error) {
       console.error("Failed to generate suggestions:", error);
@@ -135,23 +236,50 @@ export function ReportBuilder({
 
   const generateAllDrafts = async () => {
     if (!suggestions) return;
+    const fullDiaryContext = await buildFullDiaryContext();
     const promises = Object.keys(suggestions.sections).map((sectionName) => {
       const sectionData = suggestions.sections[sectionName];
       const selectedTexts = sectionData.selected.map(
         (idx) => sectionData.suggestions[idx]?.text || "",
       );
-      return generateDraftForSectionData(sectionName, selectedTexts);
+      return generateDraftForSectionData(
+        sectionName,
+        selectedTexts,
+        fullDiaryContext,
+      );
     });
     await Promise.all(promises);
   };
 
-  const generateDraftForSection = (sectionName: string) => {
+  const generateDraftForSection = async (sectionName: string) => {
     if (!suggestions) return;
+    const fullDiaryContext = await buildFullDiaryContext();
     const sectionData = suggestions.sections[sectionName];
     const selectedTexts = sectionData.selected.map(
       (idx) => sectionData.suggestions[idx]?.text || "",
     );
-    return generateDraftForSectionData(sectionName, selectedTexts);
+    return generateDraftForSectionData(
+      sectionName,
+      selectedTexts,
+      fullDiaryContext,
+    );
+  };
+
+  const buildFullDiaryContext = async (): Promise<string> => {
+    const allEntries: Entry[] = await entryApi.getAll();
+    const selected = allEntries
+      .filter((entry) => selectedEntries.includes(entry.id))
+      .sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
+
+    return selected
+      .map((entry) => {
+        const titlePart = entry.title ? `Title: ${entry.title}\n` : "";
+        return `Entry ID: ${entry.id}\n${titlePart}${entry.content}`;
+      })
+      .join("\n\n---\n\n");
   };
 
   const buildReportContent = () => {
@@ -184,6 +312,13 @@ export function ReportBuilder({
         entry_id: m.entry_id,
       })),
     }));
+
+    // Write the shared numeric citation registry at the top level so the
+    // export service can find it without merging per-section registries.
+    // Per-section registries may have conflicting IDs; this is the ground truth.
+    if (globalCitationRegistry.length > 0) {
+      content.citation_registry = globalCitationRegistry;
+    }
 
     return content;
   };
@@ -218,6 +353,34 @@ export function ReportBuilder({
         `Quality gates failed for: ${failingSections.join(", ")}. Regenerate these sections before saving.`,
       );
       return;
+    }
+
+    const warningSections = Object.keys(suggestions.sections).filter(
+      (sectionName) => {
+        const sectionData = suggestions.sections[sectionName];
+        if (sectionData.selected.length === 0) return false;
+        const quality = draftMetadata[sectionName]?.quality;
+        const diagnostics = draftMetadata[sectionName]?.diagnostics;
+        const hasUnsupportedNumericClaim = (diagnostics?.issues ?? []).some(
+          (issue) => issue.toLowerCase().includes("unsupported numeric claim"),
+        );
+        const hasQuantifierMismatch = (diagnostics?.issues ?? []).some(
+          (issue) => issue.toLowerCase().includes("quantifier mismatch"),
+        );
+        const weakGrounding = (quality?.factual_grounding_score ?? 1) < 0.45;
+        return (
+          hasUnsupportedNumericClaim || hasQuantifierMismatch || weakGrounding
+        );
+      },
+    );
+
+    if (warningSections.length > 0) {
+      const shouldContinue = window.confirm(
+        `Potential factual-risk sections detected: ${warningSections.join(", ")}. You can still save, but review these drafts first. Continue saving?`,
+      );
+      if (!shouldContinue) {
+        return;
+      }
     }
 
     setSaving(true);
@@ -337,7 +500,8 @@ export function ReportBuilder({
           </p>
         </div>
 
-        {!suggestions ? (
+        {/* ── Generate button — shown only before generation completes ── */}
+        {!suggestions && (
           <button
             onClick={generateSuggestions}
             disabled={generating}
@@ -351,7 +515,53 @@ export function ReportBuilder({
                 ? "Generate Report Suggestions"
                 : "Auto-Generate Report"}
           </button>
-        ) : (
+        )}
+
+        {/* ── Live progress timeline — visible immediately when generation starts ── */}
+        {(generating || progressTimeline.length > 0) && (
+          <div className="mt-2 bg-gray-50 dark:bg-black/40 border-2 border-buddy-dark/10 dark:border-white/10 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-black uppercase tracking-widest text-buddy-dark dark:text-buddy-green">
+                Generation Timeline
+              </h4>
+              {generating && (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-buddy-purple dark:text-buddy-green animate-pulse uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-buddy-purple dark:bg-buddy-green inline-block animate-bounce" />
+                  Live
+                </span>
+              )}
+            </div>
+            {progressTimeline.length === 0 ? (
+              <p className="text-xs text-buddy-dark/50 dark:text-gray-500 italic">
+                Starting...
+              </p>
+            ) : (
+              <ul className="space-y-1 text-xs max-h-52 overflow-auto pr-1">
+                {progressTimeline.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className={`font-medium flex items-start gap-1.5 ${
+                      idx === progressTimeline.length - 1 && generating
+                        ? "text-buddy-purple dark:text-buddy-green"
+                        : "text-buddy-dark/70 dark:text-gray-400"
+                    }`}
+                  >
+                    <span className="mt-0.5 shrink-0">
+                      {idx === progressTimeline.length - 1 && generating
+                        ? "▶"
+                        : "✓"}
+                    </span>
+                    {item}
+                  </li>
+                ))}
+                <div ref={timelineEndRef} />
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ── Sections panel — shown once suggestions are ready ── */}
+        {suggestions && (
           <div className="space-y-8 mt-8 border-t-2 border-buddy-dark/10 dark:border-white/10 pt-8">
             <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border-2 border-buddy-dark/10 dark:border-white/10">
               <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -371,6 +581,7 @@ export function ReportBuilder({
                 </button>
               )}
             </div>
+
             {Object.entries(suggestions.sections).map(
               ([sectionName, sectionData]) => (
                 <div

@@ -57,12 +57,14 @@ export const reportApi = {
   regenerateDraft: async (
     sectionName: string,
     rawTexts: string[],
+    fullDiaryContext: string,
   ): Promise<DraftRegenerateResult> => {
     const response = await api.post<DraftRegenerateResult>(
       "/report/draft/regenerate",
       {
         section_name: sectionName,
         raw_texts: rawTexts,
+        full_diary_context: fullDiaryContext,
       },
     );
     return response.data;
@@ -85,6 +87,17 @@ export const reportApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/reports/${id}`);
+  },
+
+  draftStreamUrl: (
+    entryIds: number[],
+    reportType: "project" | "timeline",
+  ): string => {
+    const params = new URLSearchParams({
+      entry_ids: entryIds.join(","),
+      report_type: reportType,
+    });
+    return `/api/report/draft/stream?${params.toString()}`;
   },
 };
 
