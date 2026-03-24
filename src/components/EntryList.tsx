@@ -34,6 +34,26 @@ export function EntryList({
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (
+      window.confirm(
+        "Are you sure you want to delete this entry? This action cannot be undone.",
+      )
+    ) {
+      try {
+        await entryApi.delete(id);
+        loadEntries(); // Refresh the list
+        if (selectedIds.includes(id)) {
+          onSelectionChange(selectedIds.filter((i) => i !== id));
+        }
+      } catch (error) {
+        console.error("Failed to delete entry:", error);
+        alert("Failed to delete entry");
+      }
+    }
+  };
+
   const toggleSelection = (id: number) => {
     if (selectedIds.includes(id)) {
       onSelectionChange(selectedIds.filter((i) => i !== id));
@@ -159,6 +179,30 @@ export function EntryList({
               <p className="text-sm text-buddy-dark/80 dark:text-gray-400 line-clamp-2 leading-relaxed font-medium">
                 {stripHtml(entry.content) || "No content..."}
               </p>
+            </div>
+
+            {/* Delete Button */}
+            <div className="flex-shrink-0 flex self-center md:self-start md:pt-1 pl-2">
+              <button
+                onClick={(e) => handleDelete(e, entry.id)}
+                className="p-2 text-red-500 hover:text-white hover:bg-red-500 dark:hover:bg-red-500/80 rounded-xl transition-all border-2 border-transparent hover:border-red-600 shadow-sm active:scale-95"
+                title="Delete Entry"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
         </motion.div>

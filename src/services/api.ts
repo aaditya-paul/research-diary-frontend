@@ -1,13 +1,21 @@
-import axios from 'axios';
-import type { Entry, EntryCreate, EntryUpdate, ReportGenerateResponse, Report, ReportCreate } from '../types';
+import axios from "axios";
+import type {
+  Entry,
+  EntryCreate,
+  EntryUpdate,
+  DraftRegenerateResult,
+  ReportGenerateResponse,
+  Report,
+  ReportCreate,
+} from "../types";
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: "/api",
 });
 
 export const entryApi = {
   getAll: async (): Promise<Entry[]> => {
-    const response = await api.get<Entry[]>('/entries');
+    const response = await api.get<Entry[]>("/entries");
     return response.data;
   },
 
@@ -17,7 +25,7 @@ export const entryApi = {
   },
 
   create: async (entry: EntryCreate): Promise<Entry> => {
-    const response = await api.post<Entry>('/entries', entry);
+    const response = await api.post<Entry>("/entries", entry);
     return response.data;
   },
 
@@ -32,21 +40,41 @@ export const entryApi = {
 };
 
 export const reportApi = {
-  generateSuggestions: async (entryIds: number[], reportType: string): Promise<ReportGenerateResponse> => {
-    const response = await api.post<ReportGenerateResponse>('/report/generate', {
-      entry_ids: entryIds,
-      report_type: reportType,
-    });
+  generateSuggestions: async (
+    entryIds: number[],
+    reportType: string,
+  ): Promise<ReportGenerateResponse> => {
+    const response = await api.post<ReportGenerateResponse>(
+      "/report/generate",
+      {
+        entry_ids: entryIds,
+        report_type: reportType,
+      },
+    );
+    return response.data;
+  },
+
+  regenerateDraft: async (
+    sectionName: string,
+    rawTexts: string[],
+  ): Promise<DraftRegenerateResult> => {
+    const response = await api.post<DraftRegenerateResult>(
+      "/report/draft/regenerate",
+      {
+        section_name: sectionName,
+        raw_texts: rawTexts,
+      },
+    );
     return response.data;
   },
 
   create: async (report: ReportCreate): Promise<Report> => {
-    const response = await api.post<Report>('/report', report);
+    const response = await api.post<Report>("/report", report);
     return response.data;
   },
 
   getAll: async (): Promise<Report[]> => {
-    const response = await api.get<Report[]>('/reports');
+    const response = await api.get<Report[]>("/reports");
     return response.data;
   },
 
@@ -61,18 +89,30 @@ export const reportApi = {
 };
 
 export const exportApi = {
-  markdown: async (reportId: number): Promise<{ content: string; filename: string }> => {
-    const response = await api.get<{ content: string; filename: string }>(`/export/markdown/${reportId}`);
+  markdown: async (
+    reportId: number,
+  ): Promise<{ content: string; filename: string }> => {
+    const response = await api.get<{ content: string; filename: string }>(
+      `/export/markdown/${reportId}`,
+    );
     return response.data;
   },
 
-  html: async (reportId: number): Promise<{ content: string; filename: string }> => {
-    const response = await api.get<{ content: string; filename: string }>(`/export/html/${reportId}`);
+  html: async (
+    reportId: number,
+  ): Promise<{ content: string; filename: string }> => {
+    const response = await api.get<{ content: string; filename: string }>(
+      `/export/html/${reportId}`,
+    );
     return response.data;
   },
 
-  pdf: async (reportId: number): Promise<{ content: string; filename: string }> => {
-    const response = await api.get<{ content: string; filename: string }>(`/export/pdf/${reportId}`);
+  pdf: async (
+    reportId: number,
+  ): Promise<{ content: string; filename: string }> => {
+    const response = await api.get<{ content: string; filename: string }>(
+      `/export/pdf/${reportId}`,
+    );
     return response.data;
   },
 };

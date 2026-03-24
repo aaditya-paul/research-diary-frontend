@@ -2,7 +2,7 @@ export interface Entry {
   id: number;
   title: string | null;
   content: string;
-  entry_type: 'project' | 'daily';
+  entry_type: "project" | "daily";
   created_at: string;
   updated_at: string;
 }
@@ -10,13 +10,13 @@ export interface Entry {
 export interface EntryCreate {
   title?: string;
   content: string;
-  entry_type: 'project' | 'daily';
+  entry_type: "project" | "daily";
 }
 
 export interface EntryUpdate {
   title?: string;
   content?: string;
-  entry_type?: 'project' | 'daily';
+  entry_type?: "project" | "daily";
 }
 
 export interface ReportSectionSuggestion {
@@ -41,6 +41,38 @@ export interface Reference {
   mentions: ReferenceMention[];
 }
 
+export interface CitationReference {
+  id: number;
+  type: string;
+  value: string;
+  entry_ids: number[];
+}
+
+export interface DraftQualityMetrics {
+  word_count: number;
+  min_words_required: number;
+  min_words_passed: boolean;
+  citation_count: number;
+  min_citations_required: number;
+  citations_passed: boolean;
+  structure_passed: boolean;
+}
+
+export interface DraftDiagnostics {
+  status: string;
+  attempts_used: number;
+  provider_used: string;
+  issues: string[];
+}
+
+export interface DraftRegenerateResult {
+  draft: string;
+  inline_citation_ids: number[];
+  citation_registry: CitationReference[];
+  quality: DraftQualityMetrics;
+  diagnostics: DraftDiagnostics;
+}
+
 export interface ReportSections {
   [key: string]: ReportSection;
 }
@@ -50,19 +82,29 @@ export interface ReportGenerateResponse {
   references: Reference[];
 }
 
+export interface ReportSectionContent {
+  selected_texts: string[];
+  draft?: string;
+  inline_citation_ids?: number[];
+  citation_registry?: CitationReference[];
+  quality?: DraftQualityMetrics;
+  diagnostics?: DraftDiagnostics;
+}
+
 export interface ReportContent {
-  hypothesis?: { selected_texts: string[] };
-  methodology?: { selected_texts: string[] };
-  findings?: { selected_texts: string[] };
-  conclusions?: { selected_texts: string[] };
-  timeline?: { selected_texts: string[] };
+  hypothesis?: ReportSectionContent;
+  methodology?: ReportSectionContent;
+  findings?: ReportSectionContent;
+  conclusions?: ReportSectionContent;
+  timeline?: ReportSectionContent;
   references?: Reference[];
+  [key: string]: any;
 }
 
 export interface Report {
   id: number;
   title: string;
-  report_type: 'project' | 'timeline';
+  report_type: "project" | "timeline";
   content: ReportContent;
   entry_ids: number[];
   created_at: string;
@@ -70,7 +112,7 @@ export interface Report {
 
 export interface ReportCreate {
   title: string;
-  report_type: 'project' | 'timeline';
+  report_type: "project" | "timeline";
   content: ReportContent;
   entry_ids: number[];
 }
